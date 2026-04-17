@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>チャットボット</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; }
+
+  #setup-screen {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center; z-index: 2000;
+  }
+  #setup-box {
+    background: #fff; border-radius: 16px; padding: 32px; width: 420px; max-width: 90vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  }
+  #setup-box h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #222; }
+  #setup-box p { font-size: 13px; color: #888; margin-bottom: 20px; line-height: 1.6; }
+  #setup-box input {
+    width: 100%; padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px;
+    font-size: 13px; outline: none; margin-bottom: 12px; color: #222; font-family: monospace;
+  }
+  #setup-box input:focus { border-color: #1a73e8; }
+  #setup-save-btn {
+    width: 100%; padding: 11px; background: #1a73e8; color: #fff;
+    border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500;
+  }
+  #setup-save-btn:hover { background: #1558b0; }
+  #setup-skip { display: block; text-align: center; margin-top: 12px; font-size: 12px; color: #aaa; cursor: pointer; }
+  #setup-skip:hover { color: #666; }
+
+  #chat-container {
+    position: fixed; bottom: 24px; right: 24px; z-index: 1000;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+  }
+  #chat-window {
+    width: 360px; height: 520px; background: #fff;
+    border: 1px solid #e0e0e0; border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #chat-window.hidden { display: none; }
+  #chat-header {
+    padding: 14px 16px; border-bottom: 1px solid #f0f0f0;
+    display: flex; align-items: center; justify-content: space-between; background: #fff;
+  }
+  #chat-header-left { display: flex; align-items: center; gap: 10px; }
+  #avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: #e8f0fe;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; color: #1a73e8;
+  }
+  #chat-title { font-size: 14px; font-weight: 600; color: #222; }
+  #chat-subtitle { font-size: 11px; color: #888; display: flex; align-items: center; gap: 4px; margin-top: 1px; }
+  #status-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; display: inline-block; }
+  #header-btns { display: flex; align-items: center; gap: 4px; }
+  .hdr-btn {
+    background: none; border: none; cursor: pointer; color: #999;
+    font-size: 12px; padding: 5px 8px; border-radius: 6px; white-space: nowrap;
+  }
+  .hdr-btn:hover { color: #333; background: #f5f5f5; }
+  #messages {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 82%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .bubble { padding: 9px 12px; border-radius: 14px; font-size: 13px; line-height: 1.6; word-break: break-word; }
+  .msg.user .bubble { background: #1a73e8; color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant .bubble { background: #f5f5f5; color: #222; border-bottom-left-radius: 4px; }
+  .msg-time { font-size: 10px; color: #bbb; margin-top: 3px; padding: 0 4px; }
+  .slack-card {
+    background: #fff; border: 1px solid #e0e0e0; border-left: 3px solid #4A154B;
+    border-radius: 8px; padding: 10px 12px; font-size: 12px; margin-top: 4px; max-width: 300px;
+  }
+  .slack-card .sc-channel { font-weight: 600; color: #4A154B; margin-bottom: 4px; font-size: 11px; }
+  .slack-card .sc-msg { color: #333; line-height: 1.5; }
+  .slack-card .sc-user { color: #888; font-size: 11px; margin-top: 4px; }
+  #input-area {
+    padding: 12px; border-top: 1px solid #f0f0f0;
+    background: #fff; display: flex; gap: 8px; align-items: flex-end;
+  }
+  #user-input {
+    flex: 1; padding: 9px 12px; font-size: 13px;
+    border: 1px solid #e0e0e0; border-radius: 20px; outline: none; resize: none;
+    background: #fafafa; color: #222; font-family: inherit;
+    max-height: 100px; min-height: 36px; height: 36px; line-height: 1.4;
+  }
+  #user-input::placeholder { color: #bbb; }
+  #user-input:focus { border-color: #1a73e8; background: #fff; }
+  #send-btn {
+    width: 36px; height: 36px; border-radius: 50%; background: #1a73e8; border: none;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background 0.15s;
+  }
+  #send-btn:hover { background: #1558b0; }
+  #send-btn:disabled { background: #e0e0e0; cursor: not-allowed; }
+  #send-btn svg { width: 16px; height: 16px; fill: #fff; }
+  #send-btn:disabled svg { fill: #bbb; }
+  #toggle-btn {
+    width: 52px; height: 52px; border-radius: 50%; background: #1a73e8; border: none;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(26,115,232,0.4); transition: transform 0.2s;
+  }
+  #toggle-btn:hover { transform: scale(1.05); }
+  #toggle-btn svg { width: 24px; height: 24px; fill: #fff; }
+  .typing-bubble { display: flex; align-items: center; gap: 4px; padding: 10px 14px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #bbb; animation: bounce 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+</style>
+</head>
+<body>
+
+<div style="padding: 40px; color: #888; text-align: center; margin-top: 20vh;">
+  <p style="font-size: 18px;">👇 右下のボタンを押してチャットを開いてください</p>
+</div>
+
+<div id="setup-screen">
+  <div id="setup-box">
+    <h2>🔧 初期設定</h2>
+    <p>SlackのBot Token（xoxb-で始まる文字列）を入力してください。<br>設定はこのブラウザに保存されます。</p>
+    <input type="password" id="slack-token-input" placeholder="xoxb-xxxxxxxxxxxx-..." />
+    <button id="setup-save-btn" onclick="saveSetup()">保存して始める</button>
+    <span id="setup-skip" onclick="skipSetup()">Slackなしで使う</span>
+  </div>
+</div>
+
+<div id="chat-container">
+  <div id="chat-window" class="hidden">
+    <div id="chat-header">
+      <div id="chat-header-left">
+        <div id="avatar">AI</div>
+        <div>
+          <div id="chat-title">アシスタント</div>
+          <div id="chat-subtitle"><span id="status-dot"></span>オンライン</div>
+        </div>
+      </div>
+      <div id="header-btns">
+        <button class="hdr-btn" onclick="fetchSlack()">📨 Slack取得</button>
+        <button class="hdr-btn" onclick="toggleChat()">✕</button>
+      </div>
+    </div>
+    <div id="messages"></div>
+    <div id="input-area">
+      <textarea id="user-input" placeholder="メッセージを入力..."></textarea>
+      <button id="send-btn">
+        <svg viewBox="0 0 24 24"><path d="M2 21L23 12 2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+  <button id="toggle-btn" onclick="toggleChat()">
+    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+  </button>
+</div>
+
+<script>
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+
+let history = [];
+let isOpen = false;
+let slackToken = '';
+
+function saveSetup() {
+  const token = document.getElementById('slack-token-input').value.trim();
+  if (token) {
+    slackToken = token;
+    localStorage.setItem('slack_token', token);
+  }
+  document.getElementById('setup-screen').style.display = 'none';
+  openChat();
+}
+
+function skipSetup() {
+  document.getElementById('setup-screen').style.display = 'none';
+  openChat();
+}
+
+function openChat() {
+  isOpen = true;
+  document.getElementById('chat-window').classList.remove('hidden');
+  if (messagesEl.children.length === 0) {
+    addMessage('assistant', slackToken
+      ? 'こんにちは！Slackと連携しました。「📨 Slack取得」ボタンで最新メッセージを確認できます。何でもお気軽にどうぞ！'
+      : 'こんにちは！何でもお気軽にご質問ください。');
+  }
+}
+
+function toggleChat() {
+  isOpen = !isOpen;
+  document.getElementById('chat-window').classList.toggle('hidden', !isOpen);
+}
+
+function now() {
+  return new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+}
+
+function addMessage(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  const time = document.createElement('div');
+  time.className = 'msg-time';
+  time.textContent = now();
+  div.appendChild(bubble);
+  div.appendChild(time);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addSlackCard(channel, user, text) {
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  const card = document.createElement('div');
+  card.className = 'slack-card';
+  card.innerHTML = `<div class="sc-channel"># ${channel}</div><div class="sc-msg">${text}</div><div class="sc-user">${user}</div>`;
+  const time = document.createElement('div');
+  time.className = 'msg-time';
+  time.textContent = now();
+  div.appendChild(card);
+  div.appendChild(time);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addTyping() {
+  const div = document.createElement('div');
+  div.className = 'msg assistant'; div.id = 'typing';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble typing-bubble';
+  bubble.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+  div.appendChild(bubble);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing');
+  if (t) t.remove();
+}
+
+async function fetchSlack() {
+  if (!slackToken) {
+    addMessage('assistant', 'Slackトークンが設定されていません。ページを再読み込みして設定してください。');
+    return;
+  }
+  addMessage('assistant', 'Slackの最新メッセージを取得中...');
+  addTyping();
+
+  try {
+    const chRes = await fetch('https://slack.com/api/conversations.list?limit=5&exclude_archived=true', {
+      headers: { 'Authorization': 'Bearer ' + slackToken }
+    });
+    const chData = await chRes.json();
+    removeTyping();
+
+    if (!chData.ok) {
+      addMessage('assistant', 'Slackの取得に失敗しました: ' + chData.error);
+      return;
+    }
+
+    const channels = chData.channels.slice(0, 3);
+    let slackSummary = '';
+
+    for (const ch of channels) {
+      const mRes = await fetch(`https://slack.com/api/conversations.history?channel=${ch.id}&limit=3`, {
+        headers: { 'Authorization': 'Bearer ' + slackToken }
+      });
+      const mData = await mRes.json();
+      if (mData.ok && mData.messages && mData.messages.length > 0) {
+        for (const msg of mData.messages) {
+          if (msg.text) {
+            const preview = msg.text.slice(0, 100) + (msg.text.length > 100 ? '...' : '');
+            addSlackCard(ch.name, msg.username || 'メンバー', preview);
+            slackSummary += `#${ch.name}: ${msg.text}\n`;
+          }
+        }
+      }
+    }
+
+    if (slackSummary) {
+      history.push({ role: 'user', content: `以下はSlackの最新メッセージです：\n${slackSummary}\nこれらを日本語で簡潔に要約してください。` });
+      addTyping();
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: 'あなたは親切で役立つ汎用アシスタントです。日本語で簡潔に答えてください。',
+          messages: history
+        })
+      });
+      const data = await res.json();
+      removeTyping();
+      const reply = data.content?.[0]?.text || '';
+      if (reply) { addMessage('assistant', reply); history.push({ role: 'assistant', content: reply }); }
+    } else {
+      addMessage('assistant', '最近のメッセージは見つかりませんでした。');
+    }
+  } catch (e) {
+    removeTyping();
+    addMessage('assistant', 'Slack取得中にエラーが発生しました。トークンを確認してください。');
+  }
+}
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  inputEl.value = '';
+  inputEl.style.height = '36px';
+  sendBtn.disabled = true;
+
+  addMessage('user', text);
+  history.push({ role: 'user', content: text });
+  addTyping();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: 'あなたは親切で役立つ汎用アシスタントです。日本語で簡潔に答えてください。',
+        messages: history
+      })
+    });
+    const data = await res.json();
+    removeTyping();
+    const reply = data.content?.[0]?.text || 'エラーが発生しました。';
+    addMessage('assistant', reply);
+    history.push({ role: 'assistant', content: reply });
+  } catch (e) {
+    removeTyping();
+    addMessage('assistant', 'エラーが発生しました。もう一度お試しください。');
+  }
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+sendBtn.addEventListener('click', sendMessage);
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = '36px';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+});
+
+const saved = localStorage.getItem('slack_token');
+if (saved) {
+  slackToken = saved;
+  document.getElementById('setup-screen').style.display = 'none';
+  openChat();
+}
+</script>
+</body>
+</html>
