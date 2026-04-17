@@ -159,6 +159,8 @@
 </div>
 
 <script>
+const VERCEL_URL = 'https://chatbot-44h3sfu8a-tmotoyama-webs-projects.vercel.app';
+
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
@@ -256,7 +258,7 @@ async function fetchSlack() {
   addTyping();
 
   try {
-    const chRes = await fetch('https://slack.com/api/conversations.list?limit=5&exclude_archived=true', {
+    const chRes = await fetch(`${VERCEL_URL}/api/slack?endpoint=conversations.list`, {
       headers: { 'Authorization': 'Bearer ' + slackToken }
     });
     const chData = await chRes.json();
@@ -271,7 +273,7 @@ async function fetchSlack() {
     let slackSummary = '';
 
     for (const ch of channels) {
-      const mRes = await fetch(`https://slack.com/api/conversations.history?channel=${ch.id}&limit=3`, {
+      const mRes = await fetch(`${VERCEL_URL}/api/slack?endpoint=conversations.history&channel=${ch.id}`, {
         headers: { 'Authorization': 'Bearer ' + slackToken }
       });
       const mData = await mRes.json();
@@ -308,7 +310,7 @@ async function fetchSlack() {
     }
   } catch (e) {
     removeTyping();
-    addMessage('assistant', 'Slack取得中にエラーが発生しました。トークンを確認してください。');
+    addMessage('assistant', 'エラーが発生しました: ' + e.message);
   }
 }
 
